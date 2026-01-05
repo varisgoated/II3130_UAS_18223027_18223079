@@ -99,7 +99,7 @@ export default function App() {
     <NavigationContainer>
       <StatusBar style="auto" />
       {session && session.user ? (
-        isAdmin ? <AdminNavigator /> : <AppNavigator />
+        <AppNavigator />
       ) : (
         <LoginScreen /> 
       )}
