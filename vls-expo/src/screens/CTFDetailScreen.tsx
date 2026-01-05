@@ -4,14 +4,13 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Crypto from 'expo-crypto'; // Library Hashing Expo
 
 export default function CTFDetailScreen({ route, navigation }: any) {
-  // Fallback aman jika params kosong
   const challenge = route.params?.challenge || null;
   const [flag, setFlag] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Jika data challenge tidak ada (error navigasi), tampilkan loading/error state
   if (!challenge) {
     return (
       <View style={styles.centerContainer}>
@@ -25,37 +24,63 @@ export default function CTFDetailScreen({ route, navigation }: any) {
 
   const handleSubmit = async () => {
     if (!flag.trim()) {
-      Alert.alert('Error', 'Please enter a flag');
+      Alert.alert('Error', 'Mohon masukkan flag terlebih dahulu.');
       return;
     }
 
     setLoading(true);
     try {
+      // 1. Cek User
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Unauthorized');
 
-      // Menggunakan RPC 'submit_flag'
-      const { data, error } = await supabase.rpc('submit_flag', {
-        p_challenge_id: challenge.id,
-        p_flag: flag.trim(),
-        p_user_id: user.id
-      });
+      // 2. Ambil Hash Asli dari Database (Logika UTS)
+      // Kita perlu mengambil ulang data challenge untuk memastikan hashnya ada/aman
+      const { data: challengeData, error: fetchError } = await supabase
+        .from('ctf_challenges')
+        .select('flag_hash')
+        .eq('id', challenge.id)
+        .single();
 
-      if (error) throw error;
+      if (fetchError || !challengeData) throw new Error('Gagal mengambil data validasi challenge.');
 
-      if (data && data.success) {
-        Alert.alert('🎉 Correct!', `Selamat! Anda mendapatkan ${challenge.points} poin.`);
-        navigation.goBack();
+      // 3. Hash Input User (SHA-256) - Menggantikan 'crypto' nodejs di UTS
+      const submittedFlag = flag.trim();
+      const submittedHash = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        submittedFlag
+      );
+
+      // 4. Bandingkan Hash
+      const isCorrect = challengeData.flag_hash === submittedHash;
+
+      // 5. Simpan Submission ke Database (Logika UTS)
+      const { error: insertError } = await supabase
+        .from('ctf_submissions')
+        .insert({
+          user_id: user.id,
+          challenge_id: challenge.id,
+          submitted_flag: submittedHash, // Kita simpan hash-nya saja demi keamanan
+          correct: isCorrect,
+        });
+
+      if (insertError) throw insertError;
+
+      // 6. Update Poin di Leaderboard (Opsional/Jika belum otomatis via trigger)
+      // Di UTS ini biasanya ditangani trigger database, tapi kita biarkan dulu.
+
+      // 7. Feedback UI
+      if (isCorrect) {
+        Alert.alert('🎉 Benar!', `Selamat! Flag valid. Anda mendapatkan ${challenge.points} poin.`, [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]);
       } else {
-        Alert.alert('❌ Incorrect', 'Flag salah. Coba lagi!');
+        Alert.alert('❌ Salah', 'Flag tidak cocok. Coba lagi!');
       }
 
     } catch (err: any) {
-      if (err.message.includes('function') || err.code === 'PGRST202') {
-         Alert.alert('Error', 'Sistem validasi flag belum siap di database.');
-      } else {
-         Alert.alert('Result', err.message || 'Incorrect Flag');
-      }
+      console.error(err);
+      Alert.alert('Error', err.message || 'Terjadi kesalahan saat submit.');
     } finally {
       setLoading(false);
     }
