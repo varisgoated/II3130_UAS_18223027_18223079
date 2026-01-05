@@ -38,12 +38,17 @@ export default function TasksScreen() {
   async function fetchTasks() {
     try {
       setLoading(true);
+      const { data: { session } } = await supabase.auth.getSession();
       
-      // Ambil data tanpa filter assignee_id dulu biar tugas MUNCUL semua
-      const { data, error } = await supabase
-        .from('tasks')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let query = supabase.from('tasks').select('*');
+      
+      // Jika user login, kita filter tugas mereka. 
+      // Jika bypass (session null), kita munculkan semua buat ngetes.
+      if (session?.user?.id) {
+        query = query.eq('assignee_id', session.user.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) throw error;
       setTasks(data || []);
@@ -55,6 +60,14 @@ export default function TasksScreen() {
       setRefreshing(false);
     }
   }
+
+  // FUNGSI TUTUP MODAL & RESET STATE (PENTING BIAR GAK NYANGKUT)
+  const handleCloseModal = () => {
+    setSubmitModalVisible(false);
+    setSelectedFile(null);
+    setSelectedTask(null);
+    setUploading(false);
+  };
 
   const pickDocument = async () => {
     try {
@@ -80,12 +93,11 @@ export default function TasksScreen() {
     try {
       setUploading(true);
       
-      // Baca file jadi Base64
+      // Mengonversi file ke Base64 (Proses ini bisa lambat tergantung ukuran file)
       const base64Data = await FileSystem.readAsStringAsync(selectedFile.uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Format JSON sesuai database UTS kamu
       const fileJson = {
         name: selectedFile.name,
         type: selectedFile.mimeType || 'application/octet-stream',
@@ -93,7 +105,6 @@ export default function TasksScreen() {
         data: `data:${selectedFile.mimeType};base64,${base64Data}`
       };
 
-      // UPDATE kolom 'file_url' sesuai isi tasks_rows.sql
       const { error } = await supabase
         .from('tasks')
         .update({ 
@@ -105,9 +116,8 @@ export default function TasksScreen() {
       if (error) throw error;
 
       Alert.alert('Berhasil', 'Tugas berhasil diunggah!');
-      setSubmitModalVisible(false);
-      setSelectedFile(null);
-      fetchTasks(); // Refresh list
+      handleCloseModal(); // Reset semua di sini
+      fetchTasks(); 
     } catch (err: any) {
       Alert.alert('Gagal', err.message);
     } finally {
@@ -149,27 +159,53 @@ export default function TasksScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <Text style={styles.headerTitle}>Tugas Saya</Text>
-        <FlatList
-          data={tasks}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTasks(); }} />}
-          ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 20 }}>Tugas kosong.</Text>}
-        />
+        
+        {loading && !refreshing ? (
+          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 50 }} />
+        ) : (
+          <FlatList
+            data={tasks}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTasks(); }} />}
+            ListEmptyComponent={<Text style={styles.emptyText}>Tidak ada tugas.</Text>}
+            contentContainerStyle={{ paddingBottom: 20 }}
+          />
+        )}
 
         <Modal visible={isSubmitModalVisible} animationType="fade" transparent={true}>
           <View style={styles.centerOverlay}>
             <View style={styles.submitPopup}>
-              <Text style={styles.popupTitle}>Pilih File Tugas</Text>
-              <TouchableOpacity style={styles.filePicker} onPress={pickDocument}>
-                <Ionicons name="cloud-upload-outline" size={32} color={COLORS.primary} />
-                <Text style={{ marginTop: 10 }}>{selectedFile ? selectedFile.name : "Klik untuk pilih file"}</Text>
+              <Text style={styles.popupTitle}>Upload: {selectedTask?.title}</Text>
+              
+              <TouchableOpacity 
+                style={[styles.filePicker, selectedFile && { borderColor: COLORS.low, backgroundColor: '#F0FDF4' }]} 
+                onPress={pickDocument}
+                disabled={uploading}
+              >
+                <Ionicons 
+                  name={selectedFile ? "checkmark-circle" : "cloud-upload-outline"} 
+                  size={32} 
+                  color={selectedFile ? COLORS.low : COLORS.primary} 
+                />
+                <Text style={[styles.filePickerText, selectedFile && { color: COLORS.low }]}>
+                  {selectedFile ? selectedFile.name : "Klik untuk pilih file"}
+                </Text>
               </TouchableOpacity>
+
               <View style={styles.popupButtons}>
-                <TouchableOpacity style={styles.btnBatal} onPress={() => setSubmitModalVisible(false)}>
+                <TouchableOpacity 
+                  style={styles.btnBatal} 
+                  onPress={handleCloseModal}
+                  disabled={uploading}
+                >
                   <Text>Batal</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.btnKirim} onPress={handleSubmitTask}>
+                <TouchableOpacity 
+                  style={[styles.btnKirim, uploading && { opacity: 0.7 }]} 
+                  onPress={handleSubmitTask}
+                  disabled={uploading}
+                >
                   {uploading ? <ActivityIndicator color="white" /> : <Text style={{ color: 'white', fontWeight: 'bold' }}>Kirim</Text>}
                 </TouchableOpacity>
               </View>
@@ -183,7 +219,7 @@ export default function TasksScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1, padding: 20, paddingTop: 50 },
+  container: { flex: 1, padding: 20 },
   headerTitle: { fontSize: 26, fontWeight: '800', color: COLORS.textMain, marginBottom: 20 },
   taskCard: { backgroundColor: 'white', padding: 18, borderRadius: 20, marginBottom: 15, elevation: 3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -197,9 +233,11 @@ const styles = StyleSheet.create({
   submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
   centerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 25 },
   submitPopup: { backgroundColor: 'white', borderRadius: 25, padding: 25 },
-  popupTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  popupTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   filePicker: { borderStyle: 'dashed', borderWidth: 2, borderColor: COLORS.border, borderRadius: 15, padding: 20, alignItems: 'center' },
+  filePickerText: { marginTop: 10, fontSize: 13, color: COLORS.textSub, textAlign: 'center' },
   popupButtons: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 },
   btnBatal: { flex: 0.45, padding: 15, alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 12 },
-  btnKirim: { flex: 0.45, padding: 15, alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12 }
+  btnKirim: { flex: 0.45, padding: 15, alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 12 },
+  emptyText: { textAlign: 'center', marginTop: 30, color: COLORS.textSub }
 });
