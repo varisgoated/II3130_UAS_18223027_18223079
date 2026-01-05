@@ -1,65 +1,109 @@
-import 'react-native-gesture-handler'; // <--- Add this at the very top
-import { useState, useEffect } from 'react';
+import 'react-native-gesture-handler';
+import React, { useState, useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
 import { supabase } from './src/lib/supabaseClient';
+import { Session } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking'; // Import Linking
+
+// Components & Navigators
 import LoginScreen from './src/screens/LoginScreen';
 import AppNavigator from './src/navigation/AppNavigator';
-import { Session } from '@supabase/supabase-js';
-import * as Linking from 'expo-linking';
+import AdminNavigator from './src/navigation/AdminNavigator';
+import SplashScreen from './src/components/SplashScreen';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
-  const url = Linking.useURL();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [appReady, setAppReady] = useState(false);
 
   useEffect(() => {
-    if (url) {
-      console.log('🔗 Incoming Deep Link:', url);
-
-      // 1. Try standard parsing first
-      let { queryParams } = Linking.parse(url);
-      
-      // 2. If that failed, manually check for the Hash (#)
-      if (!queryParams?.access_token && url.includes('#')) {
-        const hashIndex = url.indexOf('#');
-        const hashString = url.substring(hashIndex + 1); // Get everything after '#'
-        
-        // Manual parsing: "key=value&key2=value2" -> Object
-        const hashParams: Record<string, string> = {};
-        hashString.split('&').forEach(pair => {
-            const [key, value] = pair.split('=');
-            if (key && value) hashParams[key] = decodeURIComponent(value);
-        });
-        
-        console.log('wc Manual Hash Parse Result:', hashParams);
-        queryParams = hashParams; // Override with our manual result
-      }
-
-      console.log('🧩 Final Params:', queryParams);
-
-      // 3. Set Session if we found the tokens
-      if (queryParams?.access_token && queryParams?.refresh_token) {
-        console.log('✅ Tokens found! Setting session...');
-        
-        supabase.auth.setSession({
-          access_token: queryParams.access_token as string,
-          refresh_token: queryParams.refresh_token as string,
-        });
-      } else {
-        console.log('⚠️ App opened, but still no tokens found.');
-      }
-    }
-  }, [url]);
-
-  useEffect(() => {
+    // 1. Cek sesi saat aplikasi dibuka
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) checkUserRole(session.user.id);
+      setLoading(false);
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    // 2. Dengarkan perubahan sesi (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session) {
+        checkUserRole(session.user.id);
+      } else {
+        setIsAdmin(false);
+      }
     });
+
+    // 3. (BARU) Dengarkan Deep Link dari Email
+    const handleDeepLink = (event: { url: string }) => {
+      const { url } = event;
+      console.log("🔗 Incoming URL:", url);
+      
+      // Jika URL mengandung token (biasanya di hash fragment #access_token=...)
+      if (url && (url.includes('access_token') || url.includes('refresh_token'))) {
+        // Ambil bagian setelah '#'
+        const hash = url.split('#')[1];
+        if (hash) {
+            const params = new URLSearchParams(hash);
+            const access_token = params.get('access_token');
+            const refresh_token = params.get('refresh_token');
+
+            if (access_token && refresh_token) {
+                supabase.auth.setSession({
+                    access_token,
+                    refresh_token,
+                }).then(() => {
+                    console.log("✅ Session restored from URL");
+                });
+            }
+        }
+      }
+    };
+
+    const linkingSubscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Simulasi loading aset
+    setTimeout(() => {
+      setAppReady(true);
+    }, 2000);
+
+    return () => {
+      subscription.unsubscribe();
+      linkingSubscription.remove();
+    };
   }, []);
 
+  const checkUserRole = async (userId: string | undefined) => {
+    if (!userId) return;
+    try {
+      const { data } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      
+      if (data?.role === 'dosen' || data?.role === 'kordas') {
+        setIsAdmin(true);
+      }
+    } catch (e) {
+      console.log('Error checking role:', e);
+    }
+  };
+
+  if (!appReady || loading) {
+    return <SplashScreen />;
+  }
+
   return (
-    session && session.user ? <AppNavigator /> : <LoginScreen />
+    <NavigationContainer>
+      <StatusBar style="auto" />
+      {session && session.user ? (
+        isAdmin ? <AdminNavigator /> : <AppNavigator />
+      ) : (
+        <LoginScreen /> 
+      )}
+    </NavigationContainer>
   );
 }

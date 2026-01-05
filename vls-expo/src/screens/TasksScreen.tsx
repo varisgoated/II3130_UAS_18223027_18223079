@@ -236,10 +236,10 @@ export default function TasksScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1, padding: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
-  title: { fontSize: 28, fontWeight: '800', color: COLORS.textMain },
-  addButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
+  container: { flex: 1, padding: 20, paddingTop: 50 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  title: { fontSize: 26, fontWeight: '800', color: COLORS.textMain },
+  addButton: { paddingHorizontal: 15, paddingVertical: 10, borderRadius: 12 },
   addButtonText: { color: '#fff', fontWeight: 'bold' },
   taskCard: { 
     backgroundColor: '#fff', 

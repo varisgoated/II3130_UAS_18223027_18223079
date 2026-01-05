@@ -3,6 +3,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import { StyleSheet, Platform, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons'; // Library ikon bawaan Expo
+// NavigationContainer dihapus dari sini karena sudah ada di App.tsx
+import { useRole } from '../hooks/useRole';
+
 
 // Import Screens
 import TasksScreen from '../screens/TasksScreen';
@@ -10,6 +13,7 @@ import ScheduleScreen from '../screens/ScheduleScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
 import AnnouncementsScreen from '../screens/AnnouncementsScreen'; // Dashboard/Pengumuman
 import CTFNavigator from './CTFNavigator';
+import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -22,70 +26,82 @@ const COLORS = {
 
 export default function AppNavigator() {
   return (
-    <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarActiveTintColor: COLORS.primary,
-          tabBarInactiveTintColor: COLORS.inactive,
-          tabBarLabelStyle: styles.tabLabel,
-          tabBarStyle: styles.tabBar,
-          // Logika Ikon Otomatis
-          tabBarIcon: ({ focused, color, size }) => {
-            let iconName: any;
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.inactive,
+        tabBarShowLabel: true,
+        tabBarLabelStyle: styles.tabLabel,
+        tabBarStyle: styles.tabBar,
+        // LOGIKA ICON GLOBAL
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
 
-            if (route.name === 'Home') {
-              iconName = focused ? 'home' : 'home-outline';
-            } else if (route.name === 'Tasks') {
+          switch (route.name) {
+            case 'Tasks':
               iconName = focused ? 'checkbox' : 'checkbox-outline';
-            } else if (route.name === 'Schedule') {
+              break;
+            case 'Schedule':
               iconName = focused ? 'calendar' : 'calendar-outline';
-            } else if (route.name === 'Lab') {
-              iconName = focused ? 'flask' : 'flask-outline';
-            } else if (route.name === 'Ranking') {
+              break;
+            case 'CTF':
+              iconName = focused ? 'flag' : 'flag-outline';
+              break;
+            case 'Leaderboard':
               iconName = focused ? 'trophy' : 'trophy-outline';
-            }
+              break;
+            case 'Profile':
+              iconName = focused ? 'person' : 'person-outline';
+              break;
+            case 'Admin':
+              iconName = focused ? 'shield' : 'shield-outline';
+              break;
+            default:
+              iconName = 'help-circle-outline';
+          }
 
-            return <Ionicons name={iconName} size={size} color={color} />;
-          },
-        })}
-      >
-        <Tab.Screen 
-          name="Home" 
-          component={AnnouncementsScreen} 
-          options={{ tabBarLabel: 'Beranda' }} 
-        />
-        <Tab.Screen 
-          name="Tasks" 
-          component={TasksScreen} 
-          options={{ tabBarLabel: 'Tugas' }} 
-        />
-        <Tab.Screen 
-          name="Schedule" 
-          component={ScheduleScreen} 
-          options={{ tabBarLabel: 'Jadwal' }} 
-        />
-        <Tab.Screen 
-          name="Lab" 
-          component={CTFNavigator} 
-          options={{ tabBarLabel: 'Lab CTF' }} 
-        />
-        <Tab.Screen 
-          name="Ranking" 
-          component={LeaderboardScreen} 
-          options={{ tabBarLabel: 'Peringkat' }} 
-        />
-      </Tab.Navigator>
-    </NavigationContainer>
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
+    >
+      <Tab.Screen 
+        name="Tasks" 
+        component={TasksScreen} 
+        options={{ tabBarLabel: 'Tugas' }}
+      />
+      <Tab.Screen 
+        name="Schedule" 
+        component={ScheduleScreen} 
+        options={{ tabBarLabel: 'Jadwal' }}
+      />
+      <Tab.Screen 
+        name="CTF" 
+        component={CTFNavigator} 
+        options={{ tabBarLabel: 'CTF' }}
+      />
+      <Tab.Screen 
+        name="Leaderboard" 
+        component={LeaderboardScreen} 
+        options={{ tabBarLabel: 'Ranking' }}
+      />
+
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileScreen} 
+        options={{ tabBarLabel: 'Profil' }} 
+      />
+      
+    </Tab.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 25,
-    left: 20,
-    right: 20,
+    bottom: 15,
+    left: 15,
+    right: 15,
     height: 70,
     borderRadius: 25,
     backgroundColor: COLORS.background,
@@ -93,11 +109,11 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 20 : 12,
     paddingTop: 12,
     
-    // Shadow untuk Android
-    elevation: 15,
+    // Shadow Android
+    elevation: 10,
     
-    // Shadow untuk iOS
-    shadowColor: COLORS.shadow,
+    // Shadow iOS
+    shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
     shadowRadius: 20,

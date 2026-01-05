@@ -7,8 +7,7 @@ import {
   FlatList, 
   ActivityIndicator, 
   SafeAreaView, 
-  RefreshControl,
-  Image
+  RefreshControl
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,9 +20,11 @@ const COLORS = {
   accent: '#EEF2FF',
   textMain: '#1E293B',
   textSub: '#64748B',
-  gold: '#F59E0B',
-  silver: '#94A3B8',
-  bronze: '#B45309'
+  
+  // PERBAIKAN WARNA DI SINI:
+  gold: '#FFD700',    // Emas Kuning Terang (Standard Web Gold)
+  silver: '#E5E4E2',  // Platinum / Silver Terang (Lebih mengkilap)
+  bronze: '#CD7F32'   // Perunggu
 };
 
 export default function LeaderboardScreen() {
@@ -38,11 +39,16 @@ export default function LeaderboardScreen() {
   async function fetchLeaderboard() {
     try {
       setLoading(true);
-      // Logika UTS: Mengambil dari view 'leaderboard' yang berisi username dan total_points
+      // Mengambil dari view/tabel leaderboard, sesuaikan dengan schema DB Anda
+      // Di sini kita ambil user_id, score/total_points, dan join users untuk nama
       const { data, error } = await supabase
         .from('leaderboard') 
-        .select('id, username, total_points')
-        .order('total_points', { ascending: false });
+        .select(`
+          id, 
+          score,
+          users (full_name, email)
+        `)
+        .order('score', { ascending: false });
 
       if (error) throw error;
       setLeaderboard(data || []);
@@ -54,30 +60,60 @@ export default function LeaderboardScreen() {
     }
   }
 
+  // Helper untuk nama
+  const getDisplayName = (item: any) => {
+    if (item.users?.full_name) return item.users.full_name;
+    if (item.users?.email) return item.users.email.split('@')[0];
+    return 'Mahasiswa';
+  };
+
   const renderItem = ({ item, index }: { item: any; index: number }) => {
-    const isTopThree = index < 3;
-    const getRankStyle = () => {
-      if (index === 0) return { color: COLORS.gold, fontSize: 28 };
-      if (index === 1) return { color: COLORS.silver, fontSize: 24 };
-      if (index === 2) return { color: COLORS.bronze, fontSize: 22 };
-      return { color: COLORS.textSub, fontSize: 16 };
-    };
+    // Style Dinamis Berdasarkan Rank
+    let borderStyle = {};
+    let rankColor = COLORS.textSub;
+    let rankSize = 16;
+    let icon = (index + 1).toString();
+
+    if (index === 0) {
+      // JUARA 1: Emas Terang
+      borderStyle = { borderWidth: 2, borderColor: COLORS.gold, backgroundColor: '#FFFAEB' };
+      rankColor = COLORS.gold;
+      rankSize = 28;
+      icon = '🥇';
+    } else if (index === 1) {
+      // JUARA 2: Silver Terang
+      borderStyle = { borderWidth: 2, borderColor: COLORS.silver, backgroundColor: '#F9FAFB' };
+      rankColor = '#94A3B8'; // Teks rank tetap abu agar kontras dengan silver terang
+      rankSize = 24;
+      icon = '🥈';
+    } else if (index === 2) {
+      // JUARA 3: Perunggu
+      borderStyle = { borderWidth: 2, borderColor: COLORS.bronze, backgroundColor: '#FFF5EB' };
+      rankColor = COLORS.bronze;
+      rankSize = 22;
+      icon = '🥉';
+    }
 
     return (
-      <View style={[styles.card, index === 0 && styles.topCard]}>
+      <View style={[styles.card, borderStyle]}>
         <View style={styles.rankSection}>
-          <Text style={[styles.rankText, getRankStyle()]}>
-            {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+          <Text style={[styles.rankText, { color: rankColor, fontSize: rankSize }]}>
+            {icon}
           </Text>
         </View>
 
         <View style={styles.infoSection}>
-          <Text style={styles.usernameText}>{item.username || 'Anonymous Hacker'}</Text>
-          <Text style={styles.idText}>UUID: {item.id.substring(0, 8)}...</Text>
+          <Text style={styles.usernameText} numberOfLines={1}>
+            {getDisplayName(item)}
+          </Text>
+          <Text style={styles.idText}>
+            {item.users?.email || '-'}
+          </Text>
         </View>
 
         <View style={styles.pointsSection}>
-          <Text style={styles.pointsText}>{item.total_points || 0}</Text>
+          {/* Pastikan menggunakan property yang benar: item.score atau item.total_points */}
+          <Text style={styles.pointsText}>{item.score || item.total_points || 0}</Text>
           <Text style={styles.ptsLabel}>PTS</Text>
         </View>
       </View>
@@ -88,7 +124,7 @@ export default function LeaderboardScreen() {
     <SafeAreaView style={styles.safeArea}>
       <LinearGradient colors={[COLORS.primary, COLORS.secondary]} style={styles.header}>
         <Text style={styles.headerTitle}>Leaderboard</Text>
-        <Text style={styles.headerSubtitle}>Virtual Lab Distributed System</Text>
+        <Text style={styles.headerSubtitle}>Top Hackers & Engineers</Text>
       </LinearGradient>
 
       <View style={styles.container}>
@@ -104,7 +140,7 @@ export default function LeaderboardScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchLeaderboard(); }} />
             }
             ListEmptyComponent={
-              <Text style={styles.emptyText}>Belum ada data peringkat saat ini.</Text>
+              <Text style={styles.emptyText}>Belum ada data peringkat.</Text>
             }
           />
         )}
@@ -140,17 +176,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 5,
   },
-  topCard: {
-    borderWidth: 2,
-    borderColor: COLORS.gold,
-    backgroundColor: '#FFFBEB',
-  },
   rankSection: { width: 50, alignItems: 'center' },
   rankText: { fontWeight: '900' },
-  infoSection: { flex: 1, marginLeft: 10 },
+  infoSection: { flex: 1, marginLeft: 10, marginRight: 10 },
   usernameText: { fontSize: 16, fontWeight: '700', color: COLORS.textMain },
-  idText: { fontSize: 10, color: COLORS.textSub, marginTop: 2, textTransform: 'uppercase' },
-  pointsSection: { alignItems: 'center', backgroundColor: COLORS.accent, padding: 8, borderRadius: 12, minWidth: 60 },
+  idText: { fontSize: 11, color: COLORS.textSub, marginTop: 2 },
+  pointsSection: { 
+    alignItems: 'center', 
+    backgroundColor: COLORS.accent, 
+    paddingVertical: 8, 
+    paddingHorizontal: 12, 
+    borderRadius: 12, 
+    minWidth: 70 
+  },
   pointsText: { fontSize: 18, fontWeight: '800', color: COLORS.primary },
   ptsLabel: { fontSize: 9, fontWeight: '700', color: COLORS.textSub },
   emptyText: { textAlign: 'center', marginTop: 40, color: COLORS.textSub },

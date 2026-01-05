@@ -1,102 +1,213 @@
-// vls-expo/src/screens/CTFDetailScreen.tsx
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState } from 'react';
+import { 
+  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform 
+} from 'react-native';
 import { supabase } from '../lib/supabaseClient';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function CTFDetailScreen({ route, navigation }: any) {
-  const { challengeId } = route.params;
-  const [challenge, setChallenge] = useState<any>(null);
+  // Fallback aman jika params kosong
+  const challenge = route.params?.challenge || null;
   const [flag, setFlag] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchDetail();
-  }, []);
-
-  async function fetchDetail() {
-    const { data } = await supabase.from('ctf_challenges').select('*').eq('id', challengeId).single();
-    setChallenge(data);
-    setLoading(false);
+  // Jika data challenge tidak ada (error navigasi), tampilkan loading/error state
+  if (!challenge) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={{ color: '#64748b' }}>Data challenge tidak ditemukan.</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 10 }}>
+          <Text style={{ color: '#4f46e5', fontWeight: 'bold' }}>Kembali</Text>
+        </TouchableOpacity>
+      </View>
+    );
   }
 
-  async function handleSubmit() {
-    if (!flag) return Alert.alert('Error', 'Masukkan flag!');
-    setSubmitting(true);
-    
+  const handleSubmit = async () => {
+    if (!flag.trim()) {
+      Alert.alert('Error', 'Please enter a flag');
+      return;
+    }
+
+    setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
-      // Menggunakan RPC sesuai kode asli Anda, pastikan p_user_id dikirim jika dibutuhkan DB
+      if (!user) throw new Error('Unauthorized');
+
+      // Menggunakan RPC 'submit_flag'
       const { data, error } = await supabase.rpc('submit_flag', {
-        p_challenge_id: challengeId,
-        p_submitted_flag: flag.trim(),
-        p_user_id: user?.id
+        p_challenge_id: challenge.id,
+        p_flag: flag.trim(),
+        p_user_id: user.id
       });
 
       if (error) throw error;
 
-      if (data) {
-        Alert.alert('🎉 Berhasil!', 'Flag benar! Poin telah ditambahkan.', [
-          { text: 'Lanjut', onPress: () => navigation.goBack() }
-        ]);
+      if (data && data.success) {
+        Alert.alert('🎉 Correct!', `Selamat! Anda mendapatkan ${challenge.points} poin.`);
+        navigation.goBack();
       } else {
-        Alert.alert('❌ Gagal', 'Flag salah. Coba lagi!');
+        Alert.alert('❌ Incorrect', 'Flag salah. Coba lagi!');
       }
-    } catch (err: any) {
-      Alert.alert('Error', err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" />;
+    } catch (err: any) {
+      if (err.message.includes('function') || err.code === 'PGRST202') {
+         Alert.alert('Error', 'Sistem validasi flag belum siap di database.');
+      } else {
+         Alert.alert('Result', err.message || 'Incorrect Flag');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <ScrollView contentContainerStyle={styles.container}>
+      
+      {/* Header Info */}
       <View style={styles.headerCard}>
-        <Text style={styles.category}>{challenge.category}</Text>
-        <Text style={styles.title}>{challenge.title}</Text>
-        <View style={styles.pointsBadge}>
-          <Text style={styles.pointsText}>💎 {challenge.points} Points</Text>
+        <View style={styles.metaRow}>
+          <View style={styles.categoryBadge}>
+            <Text style={styles.categoryText}>{challenge.category}</Text>
+          </View>
+          <View style={styles.diffPointRow}>
+             <Text style={styles.diffText}>{challenge.difficulty} • </Text>
+             <Ionicons name="diamond" size={14} color="#4f46e5" />
+             <Text style={styles.pointsText}> {challenge.points} pts</Text>
+          </View>
         </View>
-      </View>
-
-      <Text style={styles.sectionTitle}>Deskripsi</Text>
-      <View style={styles.descriptionContainer}>
+        
+        <Text style={styles.title}>{challenge.title}</Text>
+        <View style={styles.divider} />
         <Text style={styles.description}>{challenge.description}</Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Submit Flag</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="vls_flag{...}"
-        value={flag}
-        onChangeText={setFlag}
-        autoCapitalize="none"
-      />
+      {/* Submission Area */}
+      <View style={styles.inputContainer}>
+        <Text style={styles.inputLabel}>Submit Flag</Text>
+        <TextInput 
+          style={styles.input} 
+          placeholder="FLAG{...}" 
+          placeholderTextColor="#94a3b8"
+          value={flag} 
+          onChangeText={setFlag}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <TouchableOpacity 
+          style={styles.submitButton} 
+          onPress={handleSubmit} 
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.submitButtonText}>Submit Flag 🚀</Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity disabled={submitting} onPress={handleSubmit}>
-        <LinearGradient colors={['#4f46e5', '#7e22ce']} style={styles.submitBtn}>
-          <Text style={styles.submitBtnText}>{submitting ? 'Checking...' : 'Submit Flag'}</Text>
-        </LinearGradient>
-      </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC', padding: 20 },
-  headerCard: { backgroundColor: 'white', borderRadius: 25, padding: 25, alignItems: 'center', marginBottom: 25, elevation: 2 },
-  category: { color: '#64748B', fontWeight: '800', fontSize: 12, textTransform: 'uppercase', marginBottom: 10 },
-  title: { fontSize: 24, fontWeight: '800', color: '#1E293B', textAlign: 'center', marginBottom: 15 },
-  pointsBadge: { backgroundColor: '#EEF2FF', paddingHorizontal: 15, paddingVertical: 8, borderRadius: 12 },
-  pointsText: { color: '#4F46E5', fontWeight: '700' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 10, marginLeft: 5 },
-  descriptionContainer: { backgroundColor: 'white', borderRadius: 20, padding: 20, marginBottom: 25 },
-  description: { fontSize: 15, color: '#475569', lineHeight: 24 },
-  input: { backgroundColor: 'white', borderRadius: 15, padding: 18, borderWidth: 1, borderColor: '#E2E8F0', fontSize: 16, marginBottom: 20 },
-  submitBtn: { padding: 18, borderRadius: 15, alignItems: 'center' },
-  submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 16 }
+  container: { padding: 20, backgroundColor: '#f8fafc', flexGrow: 1 },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
+  headerCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  categoryBadge: {
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  categoryText: {
+    color: '#3b82f6',
+    fontWeight: '700',
+    fontSize: 12,
+    textTransform: 'uppercase',
+  },
+  diffPointRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  diffText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+    textTransform: 'capitalize',
+  },
+  pointsText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#4f46e5',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#f1f5f9',
+    marginVertical: 12,
+  },
+  description: {
+    fontSize: 16,
+    color: '#475569',
+    lineHeight: 24,
+  },
+  inputContainer: {
+    marginTop: 10,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  input: {
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#1e293b',
+    marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  submitButton: {
+    backgroundColor: '#4f46e5',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  submitButtonText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 16,
+  },
 });
