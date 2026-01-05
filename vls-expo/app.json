@@ -25,6 +25,11 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "vlsexpo"
+    "scheme": "vlsexpo",
+    "extra": {
+      "eas": {
+        "projectId": "71a3554d-b469-428a-81dd-d3f583cc6f32"
+      }
+    }
   }
 }
