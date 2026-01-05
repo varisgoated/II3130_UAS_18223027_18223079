@@ -21,6 +21,7 @@ export default function CTFDetailScreen({ route, navigation }: any) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
 
+    // Cek apakah user sudah pernah menjawab benar sebelumnya
     const { data } = await supabase
       .from('ctf_submissions')
       .select('*')
@@ -44,24 +45,25 @@ export default function CTFDetailScreen({ route, navigation }: any) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Sesi berakhir, silakan login kembali.');
 
+      // Cek apakah input sama dengan flag di database
       const isCorrect = flag.trim() === challenge.flag;
 
-      // 1. Simpan Submisi
+      // 1. Simpan Submisi (Udah diperbaiki sesuai skema DB kamu)
       const { error: subError } = await supabase
         .from('ctf_submissions')
         .insert([{
           challenge_id: challenge.id,
           user_id: session.user.id,
-          flag_submitted: flag.trim(),
-          correct: isCorrect
+          submitted_flag: flag.trim(), // Pakai submitted_flag bukan flag_submitted
+          correct: isCorrect,
+          submitted_at: new Date().toISOString() // Pakai submitted_at
         }]);
 
       if (subError) throw subError;
 
       if (isCorrect) {
-        // 2. Update Score di Leaderboard jika benar
-        // Asumsi kamu punya fungsi RPC atau increment score di tabel leaderboard
-        await supabase.rpc('increment_score', { 
+        // 2. Tambah poin di leaderboard via RPC (jika benar)
+        const { error: rpcError } = await supabase.rpc('increment_score', { 
           user_id_param: session.user.id, 
           points: challenge.points 
         });
@@ -74,7 +76,8 @@ export default function CTFDetailScreen({ route, navigation }: any) {
         Platform.OS === 'web' ? window.alert(failMsg) : Alert.alert('Gagal', failMsg);
       }
     } catch (err: any) {
-      Platform.OS === 'web' ? window.alert(err.message) : Alert.alert('Error', err.message);
+      const errMsg = err.message || 'Terjadi kesalahan sistem';
+      Platform.OS === 'web' ? window.alert(errMsg) : Alert.alert('Error', errMsg);
     } finally {
       setLoading(false);
       setFlag('');
@@ -110,10 +113,11 @@ export default function CTFDetailScreen({ route, navigation }: any) {
           <View style={styles.actionBox}>
             <TextInput
               style={styles.input}
-              placeholder="VLS{flag_anda_disini}"
+              placeholder="FLAG{isi_flag_disini}"
               value={flag}
               onChangeText={setFlag}
               autoCapitalize="none"
+              autoCorrect={false}
             />
             <TouchableOpacity 
               style={[styles.submitBtn, loading && { opacity: 0.7 }]} 
