@@ -9,7 +9,6 @@ import * as Linking from 'expo-linking'; // Import Linking
 // Components & Navigators
 import LoginScreen from './src/screens/LoginScreen';
 import AppNavigator from './src/navigation/AppNavigator';
-import AdminNavigator from './src/navigation/AdminNavigator';
 import SplashScreen from './src/components/SplashScreen';
 
 export default function App() {
