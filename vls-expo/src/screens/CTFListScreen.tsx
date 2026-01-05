@@ -1,24 +1,28 @@
 // vls-expo/src/screens/CTFListScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl, SafeAreaView } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
-import { CTFChallenge } from '../types/supabase';
-import { useNavigation } from '@react-navigation/native';
-import { CTFListScreenProps } from '../types/navigation';
+import { LinearGradient } from 'expo-linear-gradient';
 
-type NavigationProp = CTFListScreenProps['navigation'];
-
-const difficultyColors: { [key: string]: string } = {
-    Easy: '#4caf50',
-    Medium: '#ff9800',
-    Hard: '#f44336',
+const COLORS = {
+  primary: '#4F46E5',
+  background: '#F8FAFC',
+  card: '#FFFFFF',
+  textMain: '#1E293B',
+  textSub: '#64748B',
+  border: '#E2E8F0',
 };
 
-export default function CTFListScreen() {
-  const [challenges, setChallenges] = useState<CTFChallenge[]>([]);
+const difficultyColors: { [key: string]: string } = {
+  Easy: '#10B981',
+  Medium: '#F59E0B',
+  Hard: '#EF4444',
+};
+
+export default function CTFListScreen({ navigation }: any) {
+  const [challenges, setChallenges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const navigation = useNavigation<NavigationProp>();
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchChallenges();
@@ -29,95 +33,70 @@ export default function CTFListScreen() {
       setLoading(true);
       const { data, error } = await supabase
         .from('ctf_challenges')
-        .select('id, created_at, title, description, category, difficulty, points')
+        .select('id, title, category, difficulty, points')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setChallenges(data || []);
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch challenges');
+      console.error(err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
 
-  if (loading) {
-    return <ActivityIndicator style={styles.centered} size="large" />;
-  }
-
-  if (error) {
-    return <Text style={styles.errorText}>{error}</Text>;
-  }
+  const renderItem = ({ item }: { item: any }) => (
+    <TouchableOpacity 
+      style={styles.card}
+      onPress={() => navigation.navigate('CTFDetail', { challengeId: item.id })}
+    >
+      <View style={styles.cardHeader}>
+        <Text style={styles.category}>{item.category}</Text>
+        <View style={[styles.diffBadge, { backgroundColor: difficultyColors[item.difficulty] + '20' }]}>
+          <Text style={[styles.diffText, { color: difficultyColors[item.difficulty] }]}>{item.difficulty}</Text>
+        </View>
+      </View>
+      
+      <Text style={styles.title}>{item.title}</Text>
+      
+      <View style={styles.cardFooter}>
+        <Text style={styles.points}>💎 {item.points} Points</Text>
+        <Text style={styles.actionText}>Solve Challenge →</Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={challenges}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={styles.challengeItem}
-            onPress={() => navigation.navigate('CTFDetail', { challengeId: item.id, challengeTitle: item.title })}
-          >
-            <View style={styles.challengeHeader}>
-                <Text style={styles.challengeTitle}>{item.title}</Text>
-                <Text style={styles.challengePoints}>{item.points} pts</Text>
-            </View>
-            <View style={styles.challengeFooter}>
-                <Text style={styles.challengeCategory}>{item.category}</Text>
-                <Text style={{ color: difficultyColors[item.difficulty] || '#000', fontWeight: 'bold' }}>{item.difficulty}</Text>
-            </View>
-          </TouchableOpacity>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <View style={styles.container}>
+        <Text style={styles.headerTitle}>CTF Challenges</Text>
+        {loading && !refreshing ? (
+          <ActivityIndicator color={COLORS.primary} size="large" style={{ marginTop: 20 }} />
+        ) : (
+          <FlatList
+            data={challenges}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderItem}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchChallenges} />}
+            contentContainerStyle={{ paddingBottom: 20 }}
+          />
         )}
-      />
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-    centered: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    container: {
-        flex: 1,
-    },
-    errorText: {
-        color: 'red',
-        textAlign: 'center',
-        marginTop: 20,
-    },
-    challengeItem: {
-        backgroundColor: '#fff',
-        padding: 15,
-        marginVertical: 8,
-        marginHorizontal: 16,
-        borderRadius: 8,
-        elevation: 3,
-    },
-    challengeHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    challengeTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    challengePoints: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#007bff',
-    },
-    challengeFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginTop: 10,
-    },
-    challengeCategory: {
-        fontSize: 14,
-        color: '#666',
-    },
+  container: { flex: 1, padding: 20 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.textMain, marginBottom: 20 },
+  card: { backgroundColor: 'white', borderRadius: 20, padding: 20, marginBottom: 16, elevation: 3 },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+  category: { fontSize: 12, fontWeight: '700', color: COLORS.textSub, textTransform: 'uppercase' },
+  diffBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  diffText: { fontSize: 10, fontWeight: '800' },
+  title: { fontSize: 18, fontWeight: '700', color: COLORS.textMain, marginBottom: 15 },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12 },
+  points: { fontWeight: '700', color: COLORS.primary },
+  actionText: { fontSize: 13, color: COLORS.primary, fontWeight: '600' }
 });
