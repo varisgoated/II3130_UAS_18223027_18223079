@@ -1,6 +1,7 @@
+// vls-expo/src/screens/ProfileScreen.tsx
 import React, { useState, useCallback } from 'react';
 import { 
-  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput, ScrollView, RefreshControl
+  View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput, ScrollView, RefreshControl, Platform
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,7 +12,6 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [profile, setProfile] = useState<any>(null);
   
-  // Edit State
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -35,7 +35,6 @@ export default function ProfileScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Ambil data user
       const { data: userData } = await supabase
         .from('users')
         .select('full_name, email')
@@ -45,7 +44,6 @@ export default function ProfileScreen() {
       setProfile(userData);
       setNewName(userData?.full_name || '');
 
-      // Ambil Leaderboard Rank
       const { data: leaderboardData } = await supabase
         .from('leaderboard')
         .select('user_id')
@@ -55,7 +53,6 @@ export default function ProfileScreen() {
         ? leaderboardData.findIndex((item: any) => item.user_id === user.id) + 1 
         : 0;
 
-      // Hitung Statistik
       const { data: submissions } = await supabase
         .from('ctf_submissions')
         .select('correct')
@@ -63,8 +60,6 @@ export default function ProfileScreen() {
 
       const total = submissions?.length || 0;
       const success = submissions?.filter((s: any) => s.correct).length || 0;
-      
-      // Jika belum ada submisi, set rate 0 agar tidak error/aneh
       const successPct = total > 0 ? (success / total) * 100 : 0;
       const failPct = total > 0 ? 100 - successPct : 0; 
 
@@ -100,7 +95,12 @@ export default function ProfileScreen() {
       
       setProfile({ ...profile, full_name: newName.trim() });
       setIsEditing(false);
-      Alert.alert('Sukses', 'Nama berhasil diubah.');
+      
+      if (Platform.OS === 'web') {
+        window.alert('Sukses: Nama berhasil diubah.');
+      } else {
+        Alert.alert('Sukses', 'Nama berhasil diubah.');
+      }
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally {
@@ -108,17 +108,32 @@ export default function ProfileScreen() {
     }
   };
 
+  // FIX LOGOUT UNTUK WEB & MOBILE
   const handleLogout = async () => {
-    Alert.alert('Logout', 'Yakin ingin keluar?', [
-      { text: 'Batal', style: 'cancel' },
-      { 
-        text: 'Keluar', 
-        style: 'destructive', 
-        onPress: async () => {
-          await supabase.auth.signOut();
+    const performLogout = async () => {
+      try {
+        await supabase.auth.signOut();
+        
+        if (Platform.OS === 'web') {
+          // Paksa hapus token di local storage untuk web
+          localStorage.removeItem('supabase.auth.token');
+          // Refresh halaman agar state App.tsx ter-reset total
+          window.location.reload();
         }
+      } catch (err: any) {
+        console.error("Logout error:", err.message);
       }
-    ]);
+    };
+
+    if (Platform.OS === 'web') {
+      const confirm = window.confirm("Yakin ingin keluar?");
+      if (confirm) performLogout();
+    } else {
+      Alert.alert('Logout', 'Yakin ingin keluar?', [
+        { text: 'Batal', style: 'cancel' },
+        { text: 'Keluar', style: 'destructive', onPress: performLogout }
+      ]);
+    }
   };
 
   if (loading && !refreshing) {
@@ -135,7 +150,6 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchProfileData(); }} />}
       >
-        {/* Header Profile */}
         <View style={styles.header}>
           <View style={styles.avatarPlaceholder}>
             <Text style={styles.avatarText}>
@@ -143,7 +157,6 @@ export default function ProfileScreen() {
             </Text>
           </View>
 
-          {/* Edit Nama Section */}
           <View style={styles.nameContainer}>
             {isEditing ? (
               <View style={styles.editRow}>
@@ -173,25 +186,21 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          {/* Email Full (Tidak disingkat) */}
           <Text style={styles.email}>{profile?.email}</Text>
         </View>
 
-        {/* Content Statik */}
         <View style={styles.content}>
           <View style={styles.rankCard}>
             <Text style={styles.rankLabel}>Peringkat Leaderboard</Text>
             <Text style={styles.rankValue}>{stats.rank}</Text>
           </View>
 
-          {/* Statistik Bar */}
           <View style={styles.statsContainer}>
             <View style={styles.statsHeader}>
               <Text style={styles.statsTitle}>Statistik Submisi</Text>
               <Text style={styles.statsSubtitle}>{stats.totalSubmissions} Total Percobaan</Text>
             </View>
 
-            {/* Bar Persentase Logic */}
             <View style={styles.barContainer}>
               {stats.totalSubmissions === 0 ? (
                 <View style={[styles.barSegment, { flex: 1, backgroundColor: '#e5e7eb' }]} />
@@ -220,7 +229,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Tombol Logout */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Keluar Akun</Text>
         </TouchableOpacity>
@@ -233,7 +241,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f9fafb', paddingTop: 60 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { paddingBottom: 120 }, // Jarak aman dari navbar 90+
+  scrollContent: { paddingBottom: 120 }, 
   header: { alignItems: 'center', paddingHorizontal: 24, marginBottom: 32 },
   avatarPlaceholder: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#e0e7ff', justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 2, borderColor: '#4f46e5' },
   avatarText: { fontSize: 32, fontWeight: 'bold', color: '#4f46e5' },
