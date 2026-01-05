@@ -1,56 +1,40 @@
+// vls-expo/src/screens/TasksScreen.tsx
 import React, { useState, useEffect } from 'react';
 import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  ActivityIndicator, 
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  Alert,
-  RefreshControl,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform
+  View, Text, StyleSheet, FlatList, ActivityIndicator, 
+  TouchableOpacity, TextInput, Modal, Alert, RefreshControl, 
+  SafeAreaView, KeyboardAvoidingView, Platform 
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import { LinearGradient } from 'expo-linear-gradient';
-
-// Definisi tipe data sesuai lib/supabaseTypes.ts
-export interface Task {
-  id: string;
-  created_at: string;
-  title: string;
-  description: string | null;
-  status: 'todo' | 'in_progress' | 'done';
-  priority: 'low' | 'medium' | 'high';
-  user_id: string;
-}
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { Ionicons } from '@expo/vector-icons';
 
 const COLORS = {
-  primary: '#4F46E5', // Indigo dari landing page
+  primary: '#4F46E5',
   background: '#F8FAFC',
   card: '#FFFFFF',
   textMain: '#1E293B',
   textSub: '#64748B',
   border: '#E2E8F0',
-  // Warna Prioritas Sesuai Permintaan
-  high: '#EF4444',   // Merah
-  medium: '#F59E0B', // Kuning/Amber
-  low: '#10B981',    // Hijau
+  high: '#EF4444',
+  medium: '#F59E0B',
+  low: '#10B981',
 };
 
 export default function TasksScreen() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isModalVisible, setModalVisible] = useState(false);
   
-  // State Form
-  const [newTitle, setNewTitle] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high'>('medium');
+  // Modals
+  const [isSubmitModalVisible, setSubmitModalVisible] = useState(false);
+  
+  // States
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -59,175 +43,203 @@ export default function TasksScreen() {
   async function fetchTasks() {
     try {
       setLoading(true);
+      
+      // 1. Ambil session user terlebih dahulu
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+
+      // 2. CEK: Jika userId tidak ada, jangan jalankan query (cegah error UUID undefined)
+      if (!userId) {
+        console.log("User belum login atau session kosong");
+        setTasks([]);
+        return;
+      }
+
+      // 3. Jalankan query hanya jika userId valid
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
+        .eq('assignee_id', userId) // Sesuai kolom SQL kamu
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       setTasks(data || []);
     } catch (err: any) {
-      Alert.alert('Error', err.message);
+      console.error("Fetch Error:", err.message);
+      // Jangan Alert setiap saat agar tidak mengganggu UI jika session transisi
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }
 
-  const handleAddTask = async () => {
-    if (!newTitle.trim()) {
-      Alert.alert('Peringatan', 'Judul tugas tidak boleh kosong');
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedFile(result.assets[0]);
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Gagal memilih dokumen');
+    }
+  };
+
+  const handleSubmitTask = async () => {
+    if (!selectedFile || !selectedTask) {
+      Alert.alert('Peringatan', 'Pilih file terlebih dahulu');
       return;
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Silakan login terlebih dahulu');
+      setUploading(true);
+      
+      // Membaca file dan convert ke Base64
+      const base64Data = await FileSystem.readAsStringAsync(selectedFile.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
 
-      // Insert data sesuai schema API tasks/create
-      const { data, error } = await supabase
+      // Format JSON sesuai database UTS kamu
+      const fileJson = {
+        name: selectedFile.name,
+        type: selectedFile.mimeType || 'application/octet-stream',
+        size: selectedFile.size || 0,
+        data: `data:${selectedFile.mimeType};base64,${base64Data}`
+      };
+
+      const { error } = await supabase
         .from('tasks')
-        .insert([
-          { 
-            title: newTitle, 
-            description: newDescription, 
-            status: 'todo', // Default status
-            priority: newPriority,
-            user_id: user.id 
-          }
-        ])
-        .select();
+        .update({ 
+          file_url: JSON.stringify(fileJson),
+          status: 'done'
+        })
+        .eq('id', selectedTask.id);
 
       if (error) throw error;
 
-      if (data) {
-        setTasks([data[0], ...tasks]);
-        setModalVisible(false);
-        resetForm();
-      }
+      Alert.alert('Berhasil', 'Tugas berhasil diunggah!');
+      setSubmitModalVisible(false);
+      setSelectedFile(null);
+      fetchTasks();
     } catch (err: any) {
-      Alert.alert('Gagal Menambah Tugas', err.message);
+      Alert.alert('Gagal Mengumpul', err.message);
+    } finally {
+      setUploading(false);
     }
   };
 
-  const resetForm = () => {
-    setNewTitle('');
-    setNewDescription('');
-    setNewPriority('medium');
-  };
+  const renderItem = ({ item }: any) => {
+    // Normalisasi case priority dari database (High/Medium/Low)
+    const priority = item.priority?.toLowerCase();
+    const pColor = priority === 'high' ? COLORS.high : priority === 'low' ? COLORS.low : COLORS.medium;
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return COLORS.high;
-      case 'medium': return COLORS.medium;
-      case 'low': return COLORS.low;
-      default: return COLORS.textSub;
-    }
-  };
-
-  const renderItem = ({ item }: { item: Task }) => (
-    <View style={styles.taskCard}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.taskTitle}>{item.title}</Text>
-        <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(item.priority) + '20' }]}>
-          <Text style={[styles.priorityText, { color: getPriorityColor(item.priority) }]}>
-            {item.priority.toUpperCase()}
-          </Text>
+    return (
+      <View style={styles.taskCard}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.taskTitle}>{item.title}</Text>
+          <View style={[styles.priorityBadge, { backgroundColor: pColor + '20' }]}>
+            <Text style={[styles.priorityText, { color: pColor }]}>
+              {item.priority?.toUpperCase() || 'MEDIUM'}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.taskDescription} numberOfLines={2}>
+          {item.description || "Tidak ada deskripsi."}
+        </Text>
+        <View style={styles.cardFooter}>
+          <View style={styles.statusContainer}>
+            <View style={[styles.statusDot, { backgroundColor: item.status === 'done' ? COLORS.low : COLORS.primary }]} />
+            <Text style={[styles.statusText, item.status === 'done' && { color: COLORS.low }]}>
+              {item.status === 'done' ? 'Selesai' : 'Perlu Dikerjakan'}
+            </Text>
+          </View>
+          
+          {item.status !== 'done' && (
+            <TouchableOpacity onPress={() => { setSelectedTask(item); setSubmitModalVisible(true); }}>
+              <LinearGradient colors={[COLORS.primary, '#7e22ce']} style={styles.submitBtnAction}>
+                <Text style={styles.submitBtnText}>Upload</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
-      <Text style={styles.taskDescription} numberOfLines={3}>
-        {item.description || 'Tidak ada deskripsi'}
-      </Text>
-      <View style={styles.cardFooter}>
-        <Text style={styles.statusText}>● {item.status.replace('_', ' ')}</Text>
+    );
+  };
+
+  // Tampilan jika sedang loading awal
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: 10, color: COLORS.textSub }}>Memuat tugas...</Text>
       </View>
-    </View>
-  );
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Daftar Tugas</Text>
-          <TouchableOpacity onPress={() => setModalVisible(true)}>
-            <LinearGradient colors={['#4f46e5', '#7e22ce']} style={styles.addButton}>
-              <Text style={styles.addButtonText}>+ Tambah</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Tugas Saya</Text>
         </View>
 
-        {loading && !refreshing ? (
-          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 50 }} />
-        ) : (
-          <FlatList
-            data={tasks}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTasks(); }} />
-            }
-            ListEmptyComponent={<Text style={styles.emptyText}>Tidak ada tugas untuk ditampilkan</Text>}
-          />
-        )}
+        <FlatList
+          data={tasks}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          ListEmptyComponent={
+            <View style={styles.centerContainer}>
+              <Text style={{ color: COLORS.textSub }}>Tidak ada tugas ditemukan.</Text>
+            </View>
+          }
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={() => { setRefreshing(true); fetchTasks(); }} 
+            />
+          }
+          contentContainerStyle={{ paddingBottom: 100 }}
+        />
 
-        <Modal visible={isModalVisible} animationType="slide" transparent={true}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Buat Tugas Baru</Text>
+        {/* MODAL UPLOAD */}
+        <Modal visible={isSubmitModalVisible} animationType="fade" transparent={true}>
+          <View style={styles.centerOverlay}>
+            <View style={styles.submitPopup}>
+              <Text style={styles.popupTitle}>Upload Tugas</Text>
+              <Text style={styles.subTitle}>{selectedTask?.title}</Text>
               
-              <TextInput 
-                style={styles.input} 
-                placeholder="Judul Tugas" 
-                value={newTitle} 
-                onChangeText={setNewTitle} 
-              />
-              <TextInput 
-                style={[styles.input, { height: 80 }]} 
-                placeholder="Deskripsi (Opsional)" 
-                multiline 
-                value={newDescription} 
-                onChangeText={setNewDescription} 
-              />
+              <TouchableOpacity style={styles.filePicker} onPress={pickDocument}>
+                <Ionicons name="document-attach-outline" size={40} color={COLORS.primary} />
+                <Text style={styles.filePickerText}>
+                  {selectedFile ? selectedFile.name : "Pilih File dari HP (PDF/Doc/Zip)"}
+                </Text>
+              </TouchableOpacity>
 
-              <Text style={styles.label}>Tingkat Prioritas:</Text>
-              <View style={styles.prioritySelector}>
-                {(['low', 'medium', 'high'] as const).map((p) => (
-                  <TouchableOpacity 
-                    key={p}
-                    style={[
-                      styles.priorityOption, 
-                      { borderColor: getPriorityColor(p) },
-                      newPriority === p && { backgroundColor: getPriorityColor(p) }
-                    ]}
-                    onPress={() => setNewPriority(p)}
-                  >
-                    <Text style={[
-                      styles.priorityOptionText, 
-                      { color: getPriorityColor(p) },
-                      newPriority === p && { color: '#fff' }
-                    ]}>
-                      {p.toUpperCase()}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.modalButtons}>
+              <View style={styles.popupButtons}>
                 <TouchableOpacity 
                   style={[styles.btn, { backgroundColor: '#F1F5F9' }]} 
-                  onPress={() => { setModalVisible(false); resetForm(); }}
+                  onPress={() => { setSubmitModalVisible(false); setSelectedFile(null); }}
+                  disabled={uploading}
                 >
-                  <Text style={{ color: COLORS.textMain }}>Batal</Text>
+                  <Text>Batal</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.btn, { backgroundColor: COLORS.primary }]} 
-                  onPress={handleAddTask}
+                  onPress={handleSubmitTask}
+                  disabled={uploading}
                 >
-                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Simpan Tugas</Text>
+                  {uploading ? (
+                    <ActivityIndicator color="white" />
+                  ) : (
+                    <Text style={{ color: 'white', fontWeight: 'bold' }}>Kirim</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
-          </KeyboardAvoidingView>
+          </View>
         </Modal>
       </View>
     </SafeAreaView>
@@ -236,58 +248,28 @@ export default function TasksScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1, padding: 20, paddingTop: 50 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 26, fontWeight: '800', color: COLORS.textMain },
-  addButton: { paddingHorizontal: 15, paddingVertical: 10, borderRadius: 12 },
-  addButtonText: { color: '#fff', fontWeight: 'bold' },
-  taskCard: { 
-    backgroundColor: '#fff', 
-    padding: 18, 
-    borderRadius: 18, 
-    marginBottom: 16, 
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
+  container: { flex: 1, padding: 20 },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  header: { marginBottom: 25 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.textMain },
+  taskCard: { backgroundColor: 'white', padding: 18, borderRadius: 20, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  taskTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textMain, flex: 1, marginRight: 10 },
+  taskTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textMain, flex: 1, marginRight: 8 },
   priorityBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   priorityText: { fontSize: 10, fontWeight: '900' },
   taskDescription: { color: COLORS.textSub, fontSize: 14, marginVertical: 12, lineHeight: 20 },
-  cardFooter: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12 },
-  statusText: { fontSize: 12, fontWeight: '800', color: COLORS.primary, textTransform: 'capitalize' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.5)', justifyContent: 'flex-end' },
-  modalContent: { 
-    backgroundColor: '#fff', 
-    borderTopLeftRadius: 30, 
-    borderTopRightRadius: 30, 
-    padding: 25,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 25 
-  },
-  modalTitle: { fontSize: 22, fontWeight: '800', color: COLORS.textMain, marginBottom: 20 },
-  input: { 
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1, 
-    borderColor: COLORS.border, 
-    borderRadius: 12, 
-    padding: 15, 
-    marginBottom: 18,
-    fontSize: 15
-  },
-  label: { fontSize: 14, fontWeight: '700', marginBottom: 12, color: COLORS.textMain },
-  prioritySelector: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
-  priorityOption: { 
-    flex: 0.3, 
-    paddingVertical: 12, 
-    borderWidth: 2, 
-    borderRadius: 12, 
-    alignItems: 'center' 
-  },
-  priorityOptionText: { fontSize: 11, fontWeight: '800' },
-  modalButtons: { flexDirection: 'row', justifyContent: 'space-between' },
-  btn: { flex: 0.48, padding: 16, borderRadius: 14, alignItems: 'center' },
-  emptyText: { textAlign: 'center', color: COLORS.textSub, marginTop: 40, fontSize: 16 }
+  cardFooter: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statusContainer: { flexDirection: 'row', alignItems: 'center' },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  statusText: { fontSize: 12, fontWeight: '700', color: COLORS.textSub },
+  submitBtnAction: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  submitBtnText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
+  centerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 25 },
+  submitPopup: { backgroundColor: 'white', borderRadius: 25, padding: 25 },
+  popupTitle: { fontSize: 20, fontWeight: '800', textAlign: 'center' },
+  subTitle: { fontSize: 14, color: COLORS.textSub, textAlign: 'center', marginBottom: 20 },
+  filePicker: { borderStyle: 'dashed', borderWidth: 2, borderColor: COLORS.border, borderRadius: 15, padding: 30, alignItems: 'center', marginBottom: 20, backgroundColor: '#F8FAFC' },
+  filePickerText: { marginTop: 10, color: COLORS.primary, fontWeight: '600', textAlign: 'center' },
+  popupButtons: { flexDirection: 'row', justifyContent: 'space-between' },
+  btn: { flex: 0.48, padding: 15, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }
 });
