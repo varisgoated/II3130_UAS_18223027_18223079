@@ -183,7 +183,7 @@ export default function TasksScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  container: { flex: 1, padding: 20 },
+  container: { flex: 1, padding: 20, paddingTop: 50 },
   headerTitle: { fontSize: 26, fontWeight: '800', color: COLORS.textMain, marginBottom: 20 },
   taskCard: { backgroundColor: 'white', padding: 18, borderRadius: 20, marginBottom: 15, elevation: 3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between' },
