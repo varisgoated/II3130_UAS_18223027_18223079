@@ -17,12 +17,12 @@ export default function LeaderboardScreen() {
     try {
       setLoading(true);
       // Assuming you have a 'leaderboard' table or a view
-      // that might need a join with a 'profiles' table to get names.
+      // that might need a join with a 'users' table to get names.
       // This is a simplified example. You might need to use an RPC call
       // for complex queries.
       const { data, error } = await supabase
         .from('leaderboard') // Replace with your actual table/view name
-        .select('user_id, score, profiles(full_name)') // Example of a join
+        .select('user_id, score, users(full_name)') // Example of a join
         .order('score', { ascending: false });
 
       if (error) throw error;
@@ -32,7 +32,7 @@ export default function LeaderboardScreen() {
       const formattedData = data.map((item: any) => ({
         user_id: item.user_id,
         score: item.score,
-        full_name: item.profiles?.full_name || 'Anonymous',
+        full_name: item.users?.full_name || 'Anonymous',
       }));
 
       setLeaderboard(formattedData || []);

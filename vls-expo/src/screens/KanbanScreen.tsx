@@ -31,7 +31,7 @@ export default function KanbanScreen() {
     }
   }
 
-  const handleMoveTask = async (task: Task, newStatus: 'todo' | 'inprogress' | 'done') => {
+  const handleMoveTask = async (task: Task, newStatus: 'todo' | 'in_progress' | 'done') => {
     // Optimistic UI update
     const originalTasks = tasks;
     setTasks(currentTasks =>
@@ -52,10 +52,10 @@ export default function KanbanScreen() {
     // No need to call fetchTasks() again due to optimistic update
   };
 
-  const { todoTasks, inprogressTasks, doneTasks } = useMemo(() => {
+  const { todoTasks, in_progressTasks, doneTasks } = useMemo(() => {
     return {
       todoTasks: tasks.filter(t => t.status === 'todo'),
-      inprogressTasks: tasks.filter(t => t.status === 'inprogress'),
+      in_progressTasks: tasks.filter(t => t.status === 'in_progress'),
       doneTasks: tasks.filter(t => t.status === 'done'),
     };
   }, [tasks]);
@@ -85,7 +85,7 @@ export default function KanbanScreen() {
       showsHorizontalScrollIndicator={false}
     >
       <KanbanColumn title="To Do" tasks={todoTasks} onMoveTask={handleMoveTask} />
-      <KanbanColumn title="In Progress" tasks={inprogressTasks} onMoveTask={handleMoveTask} />
+      <KanbanColumn title="In Progress" tasks={in_progressTasks} onMoveTask={handleMoveTask} />
       <KanbanColumn title="Done" tasks={doneTasks} onMoveTask={handleMoveTask} />
     </ScrollView>
   );

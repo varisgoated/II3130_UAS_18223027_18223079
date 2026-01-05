@@ -5,18 +5,18 @@ import { Task } from '../types/supabase';
 
 interface KanbanCardProps {
   task: Task;
-  onMoveTask?: (task: Task, newStatus: 'todo' | 'inprogress' | 'done') => void;
+  onMoveTask?: (task: Task, newStatus: 'todo' | 'in_progress' | 'done') => void;
 }
 
 const statusColors = {
     todo: '#ffcdd2',
-    inprogress: '#bbdefb',
+    in_progress: '#bbdefb',
     done: '#c8e6c9',
 };
 
 const nextStatus = {
-    todo: 'inprogress',
-    inprogress: 'done',
+    todo: 'in_progress',
+    in_progress: 'done',
     done: null, // No next status
 };
 
@@ -24,7 +24,7 @@ export default function KanbanCard({ task, onMoveTask }: KanbanCardProps) {
   const handleMove = () => {
     const newStatus = nextStatus[task.status];
     if (newStatus && onMoveTask) {
-      onMoveTask(task, newStatus as 'todo' | 'inprogress' | 'done');
+      onMoveTask(task, newStatus as 'todo' | 'in_progress' | 'done');
     }
   };
 

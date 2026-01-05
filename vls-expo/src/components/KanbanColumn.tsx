@@ -7,7 +7,7 @@ import KanbanCard from './KanbanCard';
 interface KanbanColumnProps {
   title: string;
   tasks: Task[];
-  onMoveTask: (task: Task, newStatus: 'todo' | 'inprogress' | 'done') => void;
+  onMoveTask: (task: Task, newStatus: 'todo' | 'in_progress' | 'done') => void;
 }
 
 export default function KanbanColumn({ title, tasks, onMoveTask }: KanbanColumnProps) {

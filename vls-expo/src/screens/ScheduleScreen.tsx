@@ -27,7 +27,7 @@ const COLORS = {
 };
 
 export default function ScheduleScreen() {
-  const [schedules, setSchedules] = useState<any[]>([]);
+  const [calendar_events, setcalendar_events] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalVisible, setModalVisible] = useState(false);
   
@@ -37,19 +37,19 @@ export default function ScheduleScreen() {
   const [time, setTime] = useState(''); 
 
   useEffect(() => {
-    fetchSchedules();
+    fetchcalendar_events();
   }, []);
 
-  async function fetchSchedules() {
+  async function fetchcalendar_events() {
     try {
       setLoading(true);
       const { data, error } = await supabase
-        .from('schedules')
+        .from('calendar_events')
         .select('*')
         .order('date', { ascending: true });
 
       if (error) throw error;
-      setSchedules(data || []);
+      setcalendar_events(data || []);
     } catch (err: any) {
       Alert.alert('Error', err.message);
     } finally {
@@ -65,14 +65,14 @@ export default function ScheduleScreen() {
 
     try {
       const { data, error } = await supabase
-        .from('schedules')
+        .from('calendar_events')
         .insert([{ title, date, time }])
         .select();
 
       if (error) throw error;
 
       if (data) {
-        setSchedules(prev => [...prev, data[0]].sort((a, b) => a.date.localeCompare(b.date)));
+        setcalendar_events(prev => [...prev, data[0]].sort((a, b) => a.date.localeCompare(b.date)));
       }
       
       setModalVisible(false);
@@ -125,7 +125,7 @@ export default function ScheduleScreen() {
         </View>
       ) : (
         <FlatList
-          data={schedules}
+          data={calendar_events}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 100 }}

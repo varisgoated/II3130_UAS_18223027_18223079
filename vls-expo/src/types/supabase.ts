@@ -8,7 +8,7 @@ export interface Task {
     created_at: string;
     title: string;
     description: string;
-    status: 'todo' | 'inprogress' | 'done';
+    status: 'todo' | 'in_progress' | 'done';
     due_at?: string;
     priority: 'Low' | 'Medium' | 'High';
     assignee?: string;
@@ -29,7 +29,7 @@ export interface Task {
   export interface LeaderboardEntry {
     user_id: string;
     score: number;
-    full_name?: string; // Assuming this comes from a join with a 'profiles' table
+    full_name?: string; // Assuming this comes from a join with a 'users' table
   }
 
   export interface Profile {
