@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler'; // <--- Add this at the very top
 import { useState, useEffect } from 'react';
 import { supabase } from './src/lib/supabaseClient';
 import LoginScreen from './src/screens/LoginScreen';
