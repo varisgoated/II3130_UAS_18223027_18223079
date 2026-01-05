@@ -1,4 +1,3 @@
-// vls-expo/src/screens/TasksScreen.tsx
 import React, { useState, useEffect } from 'react';
 import { 
   View, 
@@ -18,7 +17,7 @@ import {
 import { supabase } from '../lib/supabaseClient';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// Tipe data disesuaikan dengan lib/supabaseTypes.ts
+// Definisi tipe data sesuai lib/supabaseTypes.ts
 export interface Task {
   id: string;
   created_at: string;
@@ -30,15 +29,16 @@ export interface Task {
 }
 
 const COLORS = {
-  primary: '#4F46E5',
+  primary: '#4F46E5', // Indigo dari landing page
   background: '#F8FAFC',
   card: '#FFFFFF',
   textMain: '#1E293B',
   textSub: '#64748B',
-  success: '#10B981',
-  warning: '#F59E0B',
-  danger: '#EF4444',
   border: '#E2E8F0',
+  // Warna Prioritas Sesuai Permintaan
+  high: '#EF4444',   // Merah
+  medium: '#F59E0B', // Kuning/Amber
+  low: '#10B981',    // Hijau
 };
 
 export default function TasksScreen() {
@@ -82,16 +82,16 @@ export default function TasksScreen() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User tidak ditemukan');
+      if (!user) throw new Error('Silakan login terlebih dahulu');
 
-      // Menambahkan tugas dengan prioritas pilihan user
+      // Insert data sesuai schema API tasks/create
       const { data, error } = await supabase
         .from('tasks')
         .insert([
           { 
             title: newTitle, 
             description: newDescription, 
-            status: 'todo',
+            status: 'todo', // Default status
             priority: newPriority,
             user_id: user.id 
           }
@@ -106,7 +106,7 @@ export default function TasksScreen() {
         resetForm();
       }
     } catch (err: any) {
-      Alert.alert('Gagal', err.message);
+      Alert.alert('Gagal Menambah Tugas', err.message);
     }
   };
 
@@ -118,9 +118,9 @@ export default function TasksScreen() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return COLORS.danger;
-      case 'medium': return COLORS.warning;
-      case 'low': return COLORS.success;
+      case 'high': return COLORS.high;
+      case 'medium': return COLORS.medium;
+      case 'low': return COLORS.low;
       default: return COLORS.textSub;
     }
   };
@@ -135,9 +135,11 @@ export default function TasksScreen() {
           </Text>
         </View>
       </View>
-      <Text style={styles.taskDescription}>{item.description || 'Tidak ada deskripsi'}</Text>
+      <Text style={styles.taskDescription} numberOfLines={3}>
+        {item.description || 'Tidak ada deskripsi'}
+      </Text>
       <View style={styles.cardFooter}>
-        <Text style={styles.statusText}>● {item.status}</Text>
+        <Text style={styles.statusText}>● {item.status.replace('_', ' ')}</Text>
       </View>
     </View>
   );
@@ -154,34 +156,56 @@ export default function TasksScreen() {
           </TouchableOpacity>
         </View>
 
-        <FlatList
-          data={tasks}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTasks(); }} />}
-          ListEmptyComponent={!loading ? <Text style={styles.emptyText}>Tidak ada tugas</Text> : null}
-        />
+        {loading && !refreshing ? (
+          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 50 }} />
+        ) : (
+          <FlatList
+            data={tasks}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTasks(); }} />
+            }
+            ListEmptyComponent={<Text style={styles.emptyText}>Tidak ada tugas untuk ditampilkan</Text>}
+          />
+        )}
 
         <Modal visible={isModalVisible} animationType="slide" transparent={true}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Tugas Baru</Text>
+              <Text style={styles.modalTitle}>Buat Tugas Baru</Text>
               
-              <TextInput style={styles.input} placeholder="Judul Tugas" value={newTitle} onChangeText={setNewTitle} />
-              <TextInput style={[styles.input, { height: 80 }]} placeholder="Deskripsi" multiline value={newDescription} onChangeText={setNewDescription} />
+              <TextInput 
+                style={styles.input} 
+                placeholder="Judul Tugas" 
+                value={newTitle} 
+                onChangeText={setNewTitle} 
+              />
+              <TextInput 
+                style={[styles.input, { height: 80 }]} 
+                placeholder="Deskripsi (Opsional)" 
+                multiline 
+                value={newDescription} 
+                onChangeText={setNewDescription} 
+              />
 
-              <Text style={styles.label}>Pilih Prioritas:</Text>
+              <Text style={styles.label}>Tingkat Prioritas:</Text>
               <View style={styles.prioritySelector}>
                 {(['low', 'medium', 'high'] as const).map((p) => (
                   <TouchableOpacity 
                     key={p}
                     style={[
                       styles.priorityOption, 
-                      newPriority === p && { backgroundColor: getPriorityColor(p), borderColor: getPriorityColor(p) }
+                      { borderColor: getPriorityColor(p) },
+                      newPriority === p && { backgroundColor: getPriorityColor(p) }
                     ]}
                     onPress={() => setNewPriority(p)}
                   >
-                    <Text style={[styles.priorityOptionText, newPriority === p && { color: '#fff' }]}>
+                    <Text style={[
+                      styles.priorityOptionText, 
+                      { color: getPriorityColor(p) },
+                      newPriority === p && { color: '#fff' }
+                    ]}>
                       {p.toUpperCase()}
                     </Text>
                   </TouchableOpacity>
@@ -189,11 +213,17 @@ export default function TasksScreen() {
               </View>
 
               <View style={styles.modalButtons}>
-                <TouchableOpacity style={[styles.btn, { backgroundColor: '#E2E8F0' }]} onPress={() => setModalVisible(false)}>
-                  <Text>Batal</Text>
+                <TouchableOpacity 
+                  style={[styles.btn, { backgroundColor: '#F1F5F9' }]} 
+                  onPress={() => { setModalVisible(false); resetForm(); }}
+                >
+                  <Text style={{ color: COLORS.textMain }}>Batal</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.btn, { backgroundColor: COLORS.primary }]} onPress={handleAddTask}>
-                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Simpan</Text>
+                <TouchableOpacity 
+                  style={[styles.btn, { backgroundColor: COLORS.primary }]} 
+                  onPress={handleAddTask}
+                >
+                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Simpan Tugas</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -207,27 +237,57 @@ export default function TasksScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1, padding: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  title: { fontSize: 26, fontWeight: '800', color: COLORS.textMain },
-  addButton: { paddingHorizontal: 15, paddingVertical: 10, borderRadius: 12 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
+  title: { fontSize: 28, fontWeight: '800', color: COLORS.textMain },
+  addButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
   addButtonText: { color: '#fff', fontWeight: 'bold' },
-  taskCard: { backgroundColor: '#fff', padding: 15, borderRadius: 15, marginBottom: 15, elevation: 2 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between' },
-  taskTitle: { fontSize: 16, fontWeight: 'bold', color: COLORS.textMain, flex: 1 },
+  taskCard: { 
+    backgroundColor: '#fff', 
+    padding: 18, 
+    borderRadius: 18, 
+    marginBottom: 16, 
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  taskTitle: { fontSize: 17, fontWeight: '700', color: COLORS.textMain, flex: 1, marginRight: 10 },
   priorityBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  priorityText: { fontSize: 10, fontWeight: '800' },
-  taskDescription: { color: COLORS.textSub, marginVertical: 10 },
-  cardFooter: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 10 },
-  statusText: { fontSize: 12, fontWeight: '700', color: COLORS.primary },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 25 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, padding: 12, marginBottom: 15 },
-  label: { fontWeight: 'bold', marginBottom: 10, color: COLORS.textMain },
-  prioritySelector: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25 },
-  priorityOption: { flex: 0.3, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, alignItems: 'center' },
-  priorityOptionText: { fontSize: 12, fontWeight: 'bold', color: COLORS.textSub },
+  priorityText: { fontSize: 10, fontWeight: '900' },
+  taskDescription: { color: COLORS.textSub, fontSize: 14, marginVertical: 12, lineHeight: 20 },
+  cardFooter: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12 },
+  statusText: { fontSize: 12, fontWeight: '800', color: COLORS.primary, textTransform: 'capitalize' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.5)', justifyContent: 'flex-end' },
+  modalContent: { 
+    backgroundColor: '#fff', 
+    borderTopLeftRadius: 30, 
+    borderTopRightRadius: 30, 
+    padding: 25,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 25 
+  },
+  modalTitle: { fontSize: 22, fontWeight: '800', color: COLORS.textMain, marginBottom: 20 },
+  input: { 
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1, 
+    borderColor: COLORS.border, 
+    borderRadius: 12, 
+    padding: 15, 
+    marginBottom: 18,
+    fontSize: 15
+  },
+  label: { fontSize: 14, fontWeight: '700', marginBottom: 12, color: COLORS.textMain },
+  prioritySelector: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
+  priorityOption: { 
+    flex: 0.3, 
+    paddingVertical: 12, 
+    borderWidth: 2, 
+    borderRadius: 12, 
+    alignItems: 'center' 
+  },
+  priorityOptionText: { fontSize: 11, fontWeight: '800' },
   modalButtons: { flexDirection: 'row', justifyContent: 'space-between' },
-  btn: { flex: 0.48, padding: 15, borderRadius: 12, alignItems: 'center' },
-  emptyText: { textAlign: 'center', color: COLORS.textSub, marginTop: 20 }
+  btn: { flex: 0.48, padding: 16, borderRadius: 14, alignItems: 'center' },
+  emptyText: { textAlign: 'center', color: COLORS.textSub, marginTop: 40, fontSize: 16 }
 });

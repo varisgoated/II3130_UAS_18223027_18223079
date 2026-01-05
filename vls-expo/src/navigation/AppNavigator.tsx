@@ -1,77 +1,80 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
-import { Platform, StyleSheet, View } from 'react-native';
-import { useRole } from '../hooks/useRole';
+import { StyleSheet, Platform, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons'; // Library ikon bawaan Expo
 
-// Import Screens & Navigators
+// Import Screens
 import TasksScreen from '../screens/TasksScreen';
-import KanbanScreen from '../screens/KanbanScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
+import AnnouncementsScreen from '../screens/AnnouncementsScreen'; // Dashboard/Pengumuman
 import CTFNavigator from './CTFNavigator';
-import AdminNavigator from './AdminNavigator';
 
 const Tab = createBottomTabNavigator();
 
 const COLORS = {
-  primary: '#4F46E5', // Indigo Utama
-  inactive: '#94A3B8', // Slate (Abu-abu modern)
+  primary: '#4F46E5',   // Indigo-600 (Sesuai web UTS)
+  inactive: '#94A3B8',  // Slate-400
   background: '#FFFFFF',
-  border: '#E2E8F0',
+  shadow: '#4F46E5',
 };
 
 export default function AppNavigator() {
-  const { role } = useRole();
-
   return (
     <NavigationContainer>
       <Tab.Navigator
-        screenOptions={{
+        screenOptions={({ route }) => ({
           headerShown: false,
           tabBarActiveTintColor: COLORS.primary,
           tabBarInactiveTintColor: COLORS.inactive,
-          tabBarShowLabel: true, // Set false jika ingin hanya icon (lebih minimalis)
           tabBarLabelStyle: styles.tabLabel,
           tabBarStyle: styles.tabBar,
-        }}
+          // Logika Ikon Otomatis
+          tabBarIcon: ({ focused, color, size }) => {
+            let iconName: any;
+
+            if (route.name === 'Home') {
+              iconName = focused ? 'home' : 'home-outline';
+            } else if (route.name === 'Tasks') {
+              iconName = focused ? 'checkbox' : 'checkbox-outline';
+            } else if (route.name === 'Schedule') {
+              iconName = focused ? 'calendar' : 'calendar-outline';
+            } else if (route.name === 'Lab') {
+              iconName = focused ? 'flask' : 'flask-outline';
+            } else if (route.name === 'Ranking') {
+              iconName = focused ? 'trophy' : 'trophy-outline';
+            }
+
+            return <Ionicons name={iconName} size={size} color={color} />;
+          },
+        })}
       >
+        <Tab.Screen 
+          name="Home" 
+          component={AnnouncementsScreen} 
+          options={{ tabBarLabel: 'Beranda' }} 
+        />
         <Tab.Screen 
           name="Tasks" 
           component={TasksScreen} 
-          options={{
-            tabBarLabel: 'Tugas',
-            // Kamu bisa menambahkan icon di sini nanti menggunakan library @expo/vector-icons
-          }}
-        />
-        <Tab.Screen 
-          name="Kanban" 
-          component={KanbanScreen} 
-          options={{ tabBarLabel: 'Board' }}
+          options={{ tabBarLabel: 'Tugas' }} 
         />
         <Tab.Screen 
           name="Schedule" 
           component={ScheduleScreen} 
-          options={{ tabBarLabel: 'Jadwal' }}
+          options={{ tabBarLabel: 'Jadwal' }} 
         />
         <Tab.Screen 
-          name="CTF" 
+          name="Lab" 
           component={CTFNavigator} 
-          options={{ tabBarLabel: 'Lab/CTF' }}
+          options={{ tabBarLabel: 'Lab CTF' }} 
         />
         <Tab.Screen 
-          name="Leaderboard" 
+          name="Ranking" 
           component={LeaderboardScreen} 
-          options={{ tabBarLabel: 'Ranking' }}
+          options={{ tabBarLabel: 'Peringkat' }} 
         />
-        
-        {role === 'admin' && (
-          <Tab.Screen 
-            name="Admin" 
-            component={AdminNavigator} 
-            options={{ tabBarLabel: 'Panel' }}
-          />
-        )}
       </Tab.Navigator>
     </NavigationContainer>
   );
@@ -79,29 +82,30 @@ export default function AppNavigator() {
 
 const styles = StyleSheet.create({
   tabBar: {
-    position: 'absolute', // Membuat tab bar melayang
-    bottom: 15,
-    left: 15,
-    right: 15,
+    position: 'absolute',
+    bottom: 25,
+    left: 20,
+    right: 20,
     height: 70,
-    borderRadius: 20,
+    borderRadius: 25,
     backgroundColor: COLORS.background,
-    borderTopWidth: 0, // Hapus garis atas standar
+    borderTopWidth: 0,
     paddingBottom: Platform.OS === 'ios' ? 20 : 12,
     paddingTop: 12,
     
     // Shadow untuk Android
-    elevation: 10,
+    elevation: 15,
     
     // Shadow untuk iOS
-    shadowColor: '#4F46E5',
+    shadowColor: COLORS.shadow,
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 20,
   },
   tabLabel: {
     fontSize: 10,
     fontWeight: '700',
-    marginTop: 2,
+    marginTop: -5,
+    marginBottom: 5,
   },
 });
