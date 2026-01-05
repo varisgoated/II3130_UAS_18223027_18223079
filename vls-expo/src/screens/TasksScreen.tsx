@@ -82,7 +82,7 @@ export default function TasksScreen() {
           description: newDescription,
           priority: newPriority,
           status: 'todo',
-          assignee_id: session?.user?.id, // Supaya sinkron dengan user login
+          assignee_id: session?.user?.id,
           created_at: new Date().toISOString(),
         }]);
 
@@ -112,15 +112,34 @@ export default function TasksScreen() {
     }
   };
 
-  // FUNGSI SUBMIT TUGAS (UPLOAD)
+  // FUNGSI SUBMIT TUGAS (UPLOAD) - FIX UNTUK WEB & MOBILE
   const handleSubmitTask = async () => {
     if (!selectedFile || !selectedTask) return;
 
     try {
       setUploading(true);
-      const base64Data = await FileSystem.readAsStringAsync(selectedFile.uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      let base64Data = "";
+
+      if (Platform.OS === 'web') {
+        // Logika khusus Web menggunakan FileReader standar
+        const response = await fetch(selectedFile.uri);
+        const blob = await response.blob();
+        
+        base64Data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]); // Ambil data base64 setelah header data:
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        // Logika Mobile menggunakan FileSystem
+        base64Data = await FileSystem.readAsStringAsync(selectedFile.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      }
 
       const fileJson = {
         name: selectedFile.name,
@@ -196,6 +215,7 @@ export default function TasksScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchTasks(); }} />}
+          ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 20 }}>Belum ada tugas.</Text>}
         />
 
         {/* MODAL TAMBAH TUGAS */}

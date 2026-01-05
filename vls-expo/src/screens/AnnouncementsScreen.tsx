@@ -7,11 +7,14 @@ import {
   FlatList, 
   ActivityIndicator, 
   RefreshControl, 
-  SafeAreaView 
+  SafeAreaView,
+  TouchableOpacity,
+  Alert 
 } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import { Announcement } from '../types/supabase';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import NewEventModal from '../components/NewEventModal'; // Menggunakan modal yang sudah ada
 
 const COLORS = {
   primary: '#4F46E5',
@@ -27,7 +30,7 @@ export default function AnnouncementsScreen() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [isModalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     fetchAnnouncements();
@@ -44,12 +47,34 @@ export default function AnnouncementsScreen() {
       if (error) throw error;
       setAnnouncements(data || []);
     } catch (err: any) {
-      setError(err.message || 'Gagal memuat pengumuman');
+      Alert.alert('Error', err.message || 'Gagal memuat pengumuman');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }
+
+  const handleCreateAnnouncement = async (data: any) => {
+    try {
+      const { error } = await supabase
+        .from('announcements')
+        .insert([
+          {
+            title: data.title,
+            content: `Kategori: ${data.category}\nMatkul: ${data.course}\n${data.assignee ? 'Ditugaskan: ' + data.assignee : ''}`,
+            created_at: new Date().toISOString(),
+          }
+        ]);
+
+      if (error) throw error;
+
+      Alert.alert('Berhasil', 'Pengumuman baru telah diterbitkan!');
+      setModalVisible(false);
+      fetchAnnouncements();
+    } catch (err: any) {
+      Alert.alert('Gagal', err.message);
+    }
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -78,12 +103,19 @@ export default function AnnouncementsScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* HEADER CONSISTENT WITH UTS THEME */}
-        <View style={styles.header}>
-          <View>
+        <View style={styles.headerContainer}>
+          <View style={styles.headerText}>
             <Text style={styles.welcomeText}>Informasi Terbaru</Text>
             <Text style={styles.title}>Pengumuman</Text>
           </View>
+          
+          {/* Tombol Tambah Pengumuman */}
+          <TouchableOpacity 
+            style={styles.addButton} 
+            onPress={() => setModalVisible(true)}
+          >
+            <Ionicons name="add-circle" size={45} color={COLORS.primary} />
+          </TouchableOpacity>
         </View>
 
         {loading && !refreshing ? (
@@ -106,6 +138,12 @@ export default function AnnouncementsScreen() {
             }
           />
         )}
+
+        <NewEventModal 
+          visible={isModalVisible}
+          onClose={() => setModalVisible(false)}
+          onSubmit={handleCreateAnnouncement}
+        />
       </View>
     </SafeAreaView>
   );
@@ -114,7 +152,15 @@ export default function AnnouncementsScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
   container: { flex: 1, paddingHorizontal: 20 },
-  header: { marginTop: 20, marginBottom: 25 },
+  headerContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    marginTop: 20, 
+    marginBottom: 25 
+  },
+  headerText: { flex: 1 },
+  addButton: { padding: 5 },
   welcomeText: { fontSize: 13, color: COLORS.textSub, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
   title: { fontSize: 32, fontWeight: '800', color: COLORS.textMain, marginTop: 2 },
   listContent: { paddingBottom: 30 },
@@ -125,11 +171,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderLeftWidth: 6,
     borderLeftColor: COLORS.primary,
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 10,
-    elevation: 3,
   },
   badge: { 
     backgroundColor: COLORS.accent, 
@@ -140,27 +186,11 @@ const styles = StyleSheet.create({
     marginBottom: 12 
   },
   badgeText: { color: COLORS.primary, fontSize: 10, fontWeight: '800' },
-  announcementTitle: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: COLORS.textMain, 
-    marginBottom: 8 
-  },
-  announcementContent: { 
-    fontSize: 15, 
-    color: COLORS.textSub, 
-    lineHeight: 22,
-    marginBottom: 15 
-  },
-  footer: {
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 12,
-    alignItems: 'flex-end'
-  },
+  announcementTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textMain, marginBottom: 8 },
+  announcementContent: { fontSize: 15, color: COLORS.textSub, lineHeight: 22, marginBottom: 15 },
+  footer: { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12, alignItems: 'flex-end' },
   announcementDate: { fontSize: 12, color: '#94A3B8', fontWeight: '500' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { color: COLORS.textSub, fontSize: 16 },
-  errorText: { color: 'red', textAlign: 'center', marginTop: 20 },
 });
