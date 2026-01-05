@@ -1,27 +1,22 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { NavigationContainer } from '@react-navigation/native';
-import { StyleSheet, Platform, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons'; // Library ikon bawaan Expo
-// NavigationContainer dihapus dari sini karena sudah ada di App.tsx
-import { useRole } from '../hooks/useRole';
-
+import { StyleSheet, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons'; 
 
 // Import Screens
 import TasksScreen from '../screens/TasksScreen';
 import ScheduleScreen from '../screens/ScheduleScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
-import AnnouncementsScreen from '../screens/AnnouncementsScreen'; // Dashboard/Pengumuman
+import AnnouncementsScreen from '../screens/AnnouncementsScreen'; 
 import CTFNavigator from './CTFNavigator';
 import ProfileScreen from '../screens/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
 
 const COLORS = {
-  primary: '#4F46E5',   // Indigo-600 (Sesuai web UTS)
+  primary: '#4F46E5',   // Indigo-600
   inactive: '#94A3B8',  // Slate-400
   background: '#FFFFFF',
-  shadow: '#4F46E5',
 };
 
 export default function AppNavigator() {
@@ -34,11 +29,13 @@ export default function AppNavigator() {
         tabBarShowLabel: true,
         tabBarLabelStyle: styles.tabLabel,
         tabBarStyle: styles.tabBar,
-        // LOGIKA ICON GLOBAL
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
 
           switch (route.name) {
+            case 'Announcements':
+              iconName = focused ? 'notifications' : 'notifications-outline';
+              break;
             case 'Tasks':
               iconName = focused ? 'checkbox' : 'checkbox-outline';
               break;
@@ -54,9 +51,6 @@ export default function AppNavigator() {
             case 'Profile':
               iconName = focused ? 'person' : 'person-outline';
               break;
-            case 'Admin':
-              iconName = focused ? 'shield' : 'shield-outline';
-              break;
             default:
               iconName = 'help-circle-outline';
           }
@@ -65,6 +59,11 @@ export default function AppNavigator() {
         },
       })}
     >
+      <Tab.Screen 
+        name="Announcements" 
+        component={AnnouncementsScreen} 
+        options={{ tabBarLabel: 'Beranda' }}
+      />
       <Tab.Screen 
         name="Tasks" 
         component={TasksScreen} 
@@ -85,13 +84,11 @@ export default function AppNavigator() {
         component={LeaderboardScreen} 
         options={{ tabBarLabel: 'Ranking' }}
       />
-
       <Tab.Screen 
         name="Profile" 
         component={ProfileScreen} 
         options={{ tabBarLabel: 'Profil' }} 
       />
-      
     </Tab.Navigator>
   );
 }
@@ -108,11 +105,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     paddingBottom: Platform.OS === 'ios' ? 20 : 12,
     paddingTop: 12,
-    
-    // Shadow Android
     elevation: 10,
-    
-    // Shadow iOS
     shadowColor: '#4F46E5',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.2,
