@@ -1,0 +1,17 @@
+{
+  "builds": [
+    {
+      "src": "vls-expo/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "vls-expo/dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/vls-expo/dist/index.html"
+    }
+  ]
+}
